@@ -189,7 +189,7 @@ async def online_no(callback: CallbackQuery):
 
 
 
-@router.message(F.text == 'Продолжить ->')
+@router.message(F.text == 'Продолжить ➡️')
 async def exit_page(message: Message):
     await message.answer(
         '💡 Если что-то осталось непонятным — ничего страшного! \n'
