@@ -4,10 +4,12 @@ from aiogram.filters import CommandStart, Command
 from aiogram.types.web_app_info import WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
+import tempfile, os
 
 from database import get_teacher_schedule
 
 import app.keyboards as kb
+from app.client import get_chat_response_async, get_ocr_response_async
 
 
 router = Router()
@@ -16,6 +18,7 @@ router = Router()
 class Form(StatesGroup):
     waiting_teacher_name = State()
     waiting_subject = State() 
+    ai_chat_answers = State()
     
 
 @router.message(CommandStart())
@@ -28,11 +31,66 @@ async def cmd_start(message: Message):
 
 
 @router.message(F.text == 'Задать вопрос')
-async def debts_algorithm(message: Message):
+async def debts_algorithm(message: Message, state: FSMContext):
+    await state.set_state(Form.ai_chat_answers)
     await message.answer(
         '✏️ Напиши свой вопрос — я постараюсь помочь его решить!',
         #Точка входа для вопросов ИИ
         reply_markup = kb.webAppPageFirst)
+    
+@router.message(Form.ai_chat_answers, F.text)
+async def handle_text_message(message: Message, state: FSMContext):
+    messageCheck = message.text.strip()
+    if messageCheck in 'Вернуться к началу':
+        await message.answer(
+            'Подтверди возвращение к началу ▶️',
+            reply_markup = kb.webAppPageFirst
+        )
+        await state.clear()
+    else:
+        status = await message.answer("🤖 Думаю над ответом...")
+
+        try:
+            response = await get_chat_response_async(message.text)
+        except Exception as e:
+            response = f"❌ Ошибка: {e}"
+        
+        await status.edit_text(response)
+        await message.answer(
+            await message.answer("Можешь спросить что-то еще"),
+            reply_markup = kb.webAppPageFirst
+        )
+
+@router.message(Form.ai_chat_answers, F.photo)
+async def handle_photo_message(message: Message, state: FSMContext):
+    messageCheck = message.text.strip()
+    if messageCheck in 'Вернуться к началу':
+        await message.answer(
+            'Подтверди возвращение к началу ▶️',
+            reply_markup = kb.webAppPageFirst
+        )
+        await state.clear()
+    else:
+        status = await message.answer("🖼 Распознаю баллы...")
+
+        photo = message.photo[-1]
+        file = await message.bot.get_file(photo.file_id)
+        file_path = file.file_path
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+            await message.bot.download_file(file_path, destination=tmp_file)
+            temp_path = tmp_file.name
+
+        try:
+            result = await get_ocr_response_async(temp_path)
+            result_text = "\n".join(f"{k}: {v}" for k, v in result.items())
+        except Exception as e:
+            result_text = f"❌ Ошибка при распознавании: {e}"
+        finally:
+            os.remove(temp_path)
+
+        await status.edit_text(result_text)
+
 
 
 @router.message(F.text == 'Алгоритм закрытия долгов')
@@ -97,7 +155,7 @@ async def traditional_Current(callback: CallbackQuery):
     await callback.message.answer(
         '💬 Обратись к своему преподавателю — он подскажет, как можно добрать баллы. Это можно сделать в дни консультаций.')
     await callback.message.answer(
-        '🗓 Чтобы найти расписание консультаций, введи фамилию преподавателя (она указана в Modeus).',
+        '🗓 Чтобы найти расписание консультаций, введи фамилию преподавателя (она указана в Modeus): ',
         #Точка входа для поиска данных о преподавателях
         #Предложение о напоминании 
         reply_markup = kb.traditionalTable)
@@ -106,9 +164,10 @@ async def traditional_Current(callback: CallbackQuery):
 async def traditional_Exam(callback: CallbackQuery):
     await callback.answer('')
     await callback.message.answer(
-        'Если ты не сдал только экзамен, следи за расписанием пересдач на сайте ИРИТ-РТФ.')
+        'Если ты не сдал только экзамен, следи за расписанием пересдач на сайте ИРИТ-РТФ. \n'
+        'Либо можешь узнать об этом у своего преподавателя лично')
     await callback.message.answer(
-        '📝 Введи название предмета (можно посмотреть в Modeus): ', 
+        '📝 Чтобы найти расписание консультаций, введи фамилию преподавателя (она указана в Modeus): ', 
         #Точка входа для поиска данных о датах пересдач
         #Предложение о напоминании
         reply_markup = kb.traditionalTable)
