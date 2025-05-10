@@ -20,6 +20,9 @@ traditionalDescriprion = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardBu
                                                                [InlineKeyboardButton(text='Добор баллов', callback_data='traditionalCurrent')],
                                                                [InlineKeyboardButton(text='Экзамен с преподавателем', callback_data='traditionalExam')]])
 
+traditionalTable = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='Узнать расписание', callback_data='traditionalSchedule')]],
+                                      input_field_placeholder = 'Выберите опцию...')
+
 
 mixedCheck = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='➡️ Верно', callback_data='mixedCheckTrue')],
                                                          [InlineKeyboardButton(text='⬅️ Назад', callback_data='mixedCheckBack')]])

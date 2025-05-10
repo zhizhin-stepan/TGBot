@@ -2,6 +2,10 @@ from aiogram import F, Router, types
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command
 from aiogram.types.web_app_info import WebAppInfo
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+
+from database import get_teacher_schedule
 
 import app.keyboards as kb
 
@@ -9,9 +13,9 @@ import app.keyboards as kb
 router = Router()
 
 
-# @router.message(F.text == 'фф')
-# async def handle_start(message: Message):
-#     await message.answer("Добро пожаловать! Нажмите кнопку ниже:", reply_markup = kb.webAppPageFirst)
+class Form(StatesGroup):
+    waiting_teacher_name = State()
+    waiting_subject = State() 
     
 
 @router.message(CommandStart())
@@ -96,8 +100,8 @@ async def traditional_Current(callback: CallbackQuery):
         '🗓 Чтобы найти расписание консультаций, введи фамилию преподавателя (она указана в Modeus).',
         #Точка входа для поиска данных о преподавателях
         #Предложение о напоминании 
-        reply_markup = kb.nextPage)
-
+        reply_markup = kb.traditionalTable)
+    
 @router.callback_query(F.data == 'traditionalExam')
 async def traditional_Exam(callback: CallbackQuery):
     await callback.answer('')
@@ -107,8 +111,37 @@ async def traditional_Exam(callback: CallbackQuery):
         '📝 Введи название предмета (можно посмотреть в Modeus): ', 
         #Точка входа для поиска данных о датах пересдач
         #Предложение о напоминании
-        reply_markup = kb.nextPage)
+        reply_markup = kb.traditionalTable)
     
+
+@router.callback_query(F.data == 'traditionalSchedule')
+async def traditional_schedule(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(Form.waiting_teacher_name)
+    await callback.message.answer("🔍 Введите ФИО преподавателя:")
+    
+@router.message(Form.waiting_teacher_name, F.text)
+async def handle_teacher_name(message: Message, state: FSMContext):
+    full_name = message.text.strip()
+    if full_name in 'Продолжить ➡️':
+        await message.answer(
+            'Подтверди переход к следующему шагу ▶️',
+            reply_markup = kb.nextPage
+        )
+        await state.clear()
+    else:
+        records = get_teacher_schedule(full_name)
+
+        if records:
+            response = [f"📅 Расписание для \n{full_name}:"]
+            for day, time, room in records:
+                response.append(f"\nДень: {day} \nВремя: {time} \nАудитория: {room}")
+            await message.answer('\n'.join(response), reply_markup=kb.nextPage)
+        else:
+            await message.answer(
+                "❌ Преподаватель не найден!",
+                reply_markup = kb.nextPage
+            )
+
 
 
 @router.callback_query(F.data == 'mixedForm')
@@ -175,16 +208,23 @@ async def online_check(callback: CallbackQuery):
 async def online_yes(callback: CallbackQuery):
     await callback.answer('')
     await callback.message.answer(
-        'Если всё пройдено, но не сдан прокторинг — ' \
-        'запишись на пересдачу по графику на сайте УрФУ.', 
+        'Необходимо подать заявку на открытие доступа для прохождения итогового контроля. \n'  
+        '\nСсылка на заявку: https://forms.yandex.ru/u/6319b2afbbb4936cf5e3236d/ \n'
+        '\nПроверка заявки занимает несколько рабочих дней. ' \
+        'Ответ с дальнейшими инструкциями придёт на вашу корпоративную электронную почту, указанную в заявке.', 
         reply_markup = kb.nextPage)
     
 @router.callback_query(F.data == 'onlineNo')
 async def online_no(callback: CallbackQuery):
     await callback.answer('')
     await callback.message.answer(
-        'Если не набраны баллы — придётся пройти курс заново. \n'
-        '📍Инструкцию можно найти на сайте УрФУ в разделе «Онлайн-курсы».',
+        'Для того, чтобы получить доступ к заданиям курса вам необходимо: \n'
+        '\n📌Проверить, правильно ли указана почта в вашем профиле. '
+        'Обратите внимание, что студенты УрФУ могут обучаться исключительно под почтой в домене @urfu.me. \n'
+        '\n📌Написать письмо в техническую поддержку по адресу «openedu@urfu.ru» с просьбой добавить вас в группу «УрФУ_Задолженность». '
+        'В письме укажите: ФИО, академическую группу, адрес корпоративной почты и ссылку на курс. \n'
+        '\n❗️Важно: Запись в группу должников закрывается за НЕДЕЛЮ до наступления крайнего срока сдачи контрольно-оценочных заданий. '
+        'Срок закрытия заданий указан на странице «График открытия материалов».',
         reply_markup = kb.nextPage)
 
 
