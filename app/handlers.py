@@ -63,33 +63,26 @@ async def handle_text_message(message: Message, state: FSMContext):
 
 @router.message(Form.ai_chat_answers, F.photo)
 async def handle_photo_message(message: Message, state: FSMContext):
-    messageCheck = message.text.strip()
-    if messageCheck in 'Вернуться к началу':
-        await message.answer(
-            'Подтверди возвращение к началу ▶️',
-            reply_markup = kb.webAppPageFirst
-        )
-        await state.clear()
-    else:
-        status = await message.answer("🖼 Распознаю баллы...")
+    status = await message.answer("🖼 Распознаю баллы...")
 
-        photo = message.photo[-1]
-        file = await message.bot.get_file(photo.file_id)
-        file_path = file.file_path
+    photo = message.photo[-1]
+    file = await message.bot.get_file(photo.file_id)
+    file_path = file.file_path
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-            await message.bot.download_file(file_path, destination=tmp_file)
-            temp_path = tmp_file.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+        await message.bot.download_file(file_path, destination=tmp_file)
+        temp_path = tmp_file.name
 
-        try:
-            result = await get_ocr_response_async(temp_path)
-            result_text = "\n".join(f"{k}: {v}" for k, v in result.items())
-        except Exception as e:
-            result_text = f"❌ Ошибка при распознавании: {e}"
-        finally:
-            os.remove(temp_path)
+    try:
+        result = await get_ocr_response_async(temp_path)
+        result_text = "\n".join(f"{k}: {v}" for k, v in result.items())
+    except Exception as e:
+        result_text = f"❌ Ошибка при распознавании: {e}"
+    finally:
+        os.remove(temp_path)
 
-        await status.edit_text(result_text)
+    await status.edit_text(result_text)
+        
 
 
 
@@ -191,13 +184,25 @@ async def handle_teacher_name(message: Message, state: FSMContext):
         records = get_teacher_schedule(full_name)
 
         if records:
-            response = [f"📅 Расписание для \n{full_name}:"]
-            for day, time, room in records:
-                response.append(f"\nДень: {day} \nВремя: {time} \nАудитория: {room}")
+            response = [
+            f"📅 Расписание для {full_name}:",
+            "————————————————"]
+
+            for record in records:
+                day, time, room, contact = record
+                contact_info = f"\n✉️ Контакты: {contact}" if contact != "--" else ""
+                
+                response.append(
+                    f"🗓 День: {day}\n"
+                    f"⏰ Время: {time}\n"
+                    f"🚪 Аудитория: {room}"
+                    f"{contact_info}\n"
+                    "————————————————"
+                )
             await message.answer('\n'.join(response), reply_markup=kb.nextPage)
         else:
             await message.answer(
-                "❌ Преподаватель не найден!",
+                "❌ Преподаватель не найден! Попробуй ввести его имя еще раз",
                 reply_markup = kb.nextPage
             )
 

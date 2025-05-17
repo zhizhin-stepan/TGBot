@@ -10,7 +10,8 @@ def create_tables():
         full_name TEXT NOT NULL,
         day_of_week TEXT NOT NULL,
         time_range TEXT NOT NULL,
-        room TEXT NOT NULL
+        room TEXT NOT NULL,
+        contact TEXT NOT NULL
     )''')
     
     conn.commit()
@@ -22,7 +23,7 @@ def get_teacher_schedule(full_name: str):
     cursor = conn.cursor()
     
     cursor.execute(
-        'SELECT day_of_week, time_range, room FROM schedule WHERE full_name = ?',
+        'SELECT day_of_week, time_range, room, contact FROM schedule WHERE full_name = ?',
         (full_name,)
     )
     
