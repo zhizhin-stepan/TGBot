@@ -47,5 +47,6 @@ exitPage = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='В�
 
 webAppPageFirst = ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="Открыть часто задаваемые вопросы", web_app=WebAppInfo(url='https://zhizhin-stepan.github.io/TEST-TGbot/'))],
                                                 [KeyboardButton(text="Открыть таблицу преподавателей", web_app=WebAppInfo(url='https://zhizhin-stepan.github.io/SHIFT-TGBot/'))],
+                                                [KeyboardButton(text="Открыть таблицу контактов с преподавателями", web_app=WebAppInfo(url='https://zhizhin-stepan.github.io/CONTACTS-TGBot/'))],
                                                 [KeyboardButton(text='Вернуться к началу')]],
                                             resize_keyboard=True)
