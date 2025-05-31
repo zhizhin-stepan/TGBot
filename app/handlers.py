@@ -19,6 +19,8 @@ class Form(StatesGroup):
     waiting_teacher_name = State()
     waiting_subject = State() 
     ai_chat_answers = State()
+    agination_consult = State()
+    pagination_schedule = State()
     
 
 @router.message(CommandStart())
@@ -179,13 +181,12 @@ async def traditional_schedule(callback: CallbackQuery, state: FSMContext):
 @router.message(Form.waiting_teacher_name, F.text)
 async def handle_teacher_name(message: Message, state: FSMContext):
     full_name = message.text.strip()
-    if full_name in 'Продолжить ➡️':
-        await message.answer(
-            'Подтверди переход к следующему шагу ▶️',
-            reply_markup = kb.nextPage
-        )
+    if full_name == 'Продолжить ➡️':
+        await message.answer('Подтверди переход к следующему шагу ▶️', reply_markup=kb.nextPage)
         await state.clear()
     else:
+        await state.update_data(teacher_name=full_name)
+        
         records = get_teacher_consultations(full_name)
         lessons = get_teacher_schedule(full_name)
 
@@ -208,25 +209,91 @@ async def handle_teacher_name(message: Message, state: FSMContext):
             answer = [
             f"📅 Расписание занятий для {full_name}:",
             "————————————————"]
-
-            for lesson in lessons:
-                day, time, room, contact = lesson
-                contact_info = f"\n✉️ Контакты: {contact}" if contact != "--" else ""
-                
-                answer.append(
-                    f"🗓 День: {day}\n"
-                    f"⏰ Время: {time}\n"
-                    f"🚪 Аудитория: {room}"
-                    f"{contact_info}\n"
-                    "————————————————"
-                )
             await message.answer('\n'.join(response), reply_markup=kb.nextPage)
-            await message.answer('\n'.join(answer), reply_markup=kb.nextPage)
+
+            await state.update_data(
+            schedule=lessons,
+            schedule_page=0)
+
+            await send_schedule_page(message, lessons, 0, state)
         else:
             await message.answer(
                 "❌ Преподаватель не найден! Попробуй ввести его имя еще раз",
                 reply_markup = kb.nextPage
             )
+
+async def send_schedule_page(message: Message, data: list, page: int, state: FSMContext):
+    if not data:
+        await message.answer("❌ Расписание занятий не найдено")
+        return
+    
+    items_per_page = 6
+    total_pages = (len(data) + items_per_page - 1) // items_per_page
+    start_idx = page * items_per_page
+    end_idx = min((page + 1) * items_per_page, len(data))
+    
+    response = [f"📅 Расписание занятий для {data[0][0]} (стр. {page+1}/{total_pages}):", "————————————————"]
+    for record in data[start_idx:end_idx]:
+        day, time, room, contact = record
+        contact_info = f"\n✉️ Контакты: {contact}" if contact != "--" else ""
+        response.append(
+            f"🗓 День: {day}\n"
+            f"⏰ Время: {time}\n"
+            f"🚪 Аудитория: {room}"
+            f"{contact_info}\n"
+            "————————————————"
+        )
+    
+    # Создаем клавиатуру пагинации
+    pagination_kb = InlineKeyboardMarkup(inline_keyboard=[])
+    if total_pages > 1:
+        row = []
+        if page > 0:
+            row.append(InlineKeyboardButton(
+                text="⬅️", 
+                callback_data=f"sched_prev:{page}"
+            ))
+        row.append(InlineKeyboardButton(
+            text=f"{page+1}/{total_pages}", 
+            callback_data="current_page"
+        ))
+        if page < total_pages - 1:
+            row.append(InlineKeyboardButton(
+                text="➡️", 
+                callback_data=f"sched_next:{page}"
+            ))
+        pagination_kb.inline_keyboard.append(row)
+    
+    # Сохраняем текущую страницу
+    await state.update_data(schedule_page=page)
+    
+    await message.answer('\n'.join(response), reply_markup=pagination_kb)
+
+
+@router.callback_query(F.data.startswith("sched_"))
+async def handle_schedule_pagination(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    current_page = data.get("schedule_page", 0)
+    schedule = data.get("schedule", [])
+    
+    action, page = callback.data.split(":")
+    page = int(page)
+    
+    if "prev" in action and page > 0:
+        new_page = page - 1
+    elif "next" in action and page < (len(schedule) // 6):
+        new_page = page + 1
+    else:
+        await callback.answer()
+        return
+    
+    await callback.message.delete()
+    await send_schedule_page(callback.message, schedule, new_page, state)
+    await callback.answer()
+
+@router.callback_query(F.data == "current_page")
+async def handle_current_page(callback: CallbackQuery):
+    await callback.answer()
 
 
 
