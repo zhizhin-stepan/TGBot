@@ -44,49 +44,67 @@ async def get_ocr_response_async(image_path: str, prompt: str = FIXED_PROMPT) ->
 def process_text(text: str, db_path: str = "../schedule.db") -> Union[str, List[Dict]]:
     """
     Парсит текст по шаблону и вытаскивает данные из базы.
+    Поддерживает несколько преподавателей через запятую.
     """
     lines = [line.strip() for line in text.strip().split('\n') if line.strip()]
+    # Проверяем, есть ли валидные строки с двумя разделителями
     for line in lines:
         if line.count('|') != 2:
-            return "все хорошо"
+            return "По данному предмету у тебя нет задолженности 🤩"
 
     result = []
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
+
     for line in lines:
-        subject, score_str, full_name = [part.strip() for part in line.split('|')]
+        subject, score_str, teachers_str = [part.strip() for part in line.split('|')]
+        # Обработка балла
         try:
             score = float(score_str.replace(",", "."))
         except ValueError:
             score = 0.0
-        reason = "недобор баллов" if score < 40 else "провален экзамен"
-        cursor.execute("""
-            SELECT day_of_week, time_range, room, contact FROM schedule WHERE full_name = ?
-        """, (full_name,))
-        row = cursor.fetchone()
-        if row:
-            day_of_week, time_range, room, contact = row
-            meeting_info = {
-                "день недели": day_of_week,
-                "время": time_range,
-                "аудитория": room,
-                "контакт": contact
-            }
-        else:
-            meeting_info = {
-                "день недели": "нет данных",
-                "время": "нет данных",
-                "аудитория": "нет данных",
-                "контакт": "нет данных"
-            }
+        reason = "недобор баллов" if score < 40 and score != 0.0 else "провален экзамен"
+
+        # Разбор списка преподавателей
+        teachers = [t.strip() for t in teachers_str.split(',') if t.strip()]
+        # Сбор информации о встречах для каждого преподавателя
+        meetings = []
+        for teacher in teachers:
+            cursor.execute(
+                """
+                SELECT day_of_week, time_range, room, contact 
+                FROM schedule 
+                WHERE full_name = ?
+                """,
+                (teacher,)
+            )
+            row = cursor.fetchone()
+            if row:
+                day_of_week, time_range, room, contact = row
+                meeting_info = {
+                    "день недели": day_of_week,
+                    "время": time_range,
+                    "аудитория": room,
+                    "контакт": contact
+                }
+            else:
+                meeting_info = {
+                    "день недели": "нет данных",
+                    "время": "нет данных",
+                    "аудитория": "нет данных",
+                    "контакт": "нет данных"
+                }
+            meetings.append({teacher: meeting_info})
+
         entry = {
             "предмет": subject,
             "балл": score,
             "причина": reason,
-            "место встречи": meeting_info,
-            "преподаватель": full_name
+            "преподаватели": teachers,
+            "места встречи": meetings
         }
         result.append(entry)
+
     conn.close()
     return result
 
@@ -96,21 +114,29 @@ def format_for_telegram(entries: Union[str, List[Dict]]) -> str:
     """
     if isinstance(entries, str):
         return entries  # например, "все хорошо"
+
     message_lines = []
+
     for entry in entries:
         lines = [
             f"🎓 <b>{entry['предмет']}</b>",
             f"🏅 <b>Балл: {entry['балл']}</b>",
             f"{'❗️' if entry['причина'] == 'недобор баллов' else '❌'} <i>Причина: {entry['причина']}</i>",
-            f"👤 Преподаватель: {entry['преподаватель']}",
-            f"📍 <u>Место встречи</u>:",
-            f"   📆 День недели: {entry['место встречи']['день недели']}",
-            f"   ⏰ Время: {entry['место встречи']['время']}",
-            f"   🚪 Аудитория: {entry['место встречи']['аудитория']}",
-            f"   ✉️ Контакт: {entry['место встречи']['контакт']}",
         ]
+
+        for meeting in entry.get('места встречи', []):
+            for teacher, details in meeting.items():
+                lines.extend([
+                    f"👤 Преподаватель: {teacher}",
+                    f"📍 <u>Место встречи</u>:",
+                    f"   📆 День недели: {details['день недели']}",
+                    f"   ⏰ Время: {details['время']}",
+                    f"   🚪 Аудитория: {details['аудитория']}",
+                    f"   ✉️ Контакт: {details['контакт']}",
+                    "────────────"
+                ])
         message_lines.append('\n'.join(lines))
-        message_lines.append("────────────")
+
     return "\n\n".join(message_lines)
 
 async def analyze_image_and_format(image_path: str, db_path: str = "schedule.db") -> str:
@@ -122,4 +148,5 @@ async def analyze_image_and_format(image_path: str, db_path: str = "schedule.db"
     if not text:
         return "❌ Текст не распознан"
     entries = process_text(text, db_path)
+    print(entries)
     return format_for_telegram(entries)

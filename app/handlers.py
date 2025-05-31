@@ -10,6 +10,7 @@ from database import get_teacher_schedule, get_teacher_consultations
 
 import app.keyboards as kb
 from app.client import get_chat_response_async, get_ocr_response_async, analyze_image_and_format
+import sqlite3
 
 
 router = Router()
@@ -43,8 +44,27 @@ async def debts_algorithm(message: Message, state: FSMContext):
         #Точка входа для вопросов ИИ
         reply_markup = kb.webAppPageFirst)
     
+
+full_name_prompts = {}
+
+def load_full_name_prompts(db_path="schedule.db"):
+    global full_name_prompts
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT full_name, questions FROM schedule WHERE questions IS NOT NULL")
+    rows = cursor.fetchall()
+    conn.close()
+
+    # Создаем словарь, где ключ — фио в нижнем регистре
+    full_name_prompts = {
+        full_name.lower(): questions.strip() for full_name, questions in rows
+    }
+
+    
 @router.message(Form.ai_chat_answers, F.text)
 async def handle_text_message(message: Message, state: FSMContext):
+    if not full_name_prompts:
+        load_full_name_prompts()
     messageCheck = message.text.strip()
     if messageCheck in 'Вернуться к началу':
         await message.answer(
@@ -56,14 +76,34 @@ async def handle_text_message(message: Message, state: FSMContext):
         status = await message.answer("🤖 Думаю над ответом...")
 
         try:
-            response = await get_chat_response_async(message.text)
+            user_text = message.text.lower()
+            matched_prompt = None
+            matched_name = None
+
+            for full_name in full_name_prompts:
+                if full_name in user_text:
+                    print(full_name)
+                    matched_prompt = full_name_prompts[full_name]
+                    print(matched_prompt)
+                    matched_name = full_name
+                    break
+
+            if matched_prompt:
+                # Удалим ФИО из текста и сформируем промт
+                user_query = user_text.replace(matched_name, "", 1).strip()
+                full_prompt = f"{matched_prompt}\n\nВопрос на который нужен ответ: {user_query}"
+            else:
+                full_prompt = message.text
+
+            response = await get_chat_response_async(full_prompt)
+
         except Exception as e:
             response = f"❌ Ошибка: {e}"
-        
+
         await status.edit_text(response)
         await message.answer(
-            await message.answer("Можешь спросить что-то еще"),
-            reply_markup = kb.webAppPageFirst
+            "Можешь спросить что-то еще",
+            reply_markup=kb.webAppPageFirst
         )
 
 @router.message(Form.ai_chat_answers, F.photo)
