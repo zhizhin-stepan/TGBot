@@ -3,33 +3,55 @@ from datetime import timedelta, datetime
 from datetime import datetime, timedelta
 
 def extend_schedule(data, end_date_str):
-    # Преобразуем конечную дату в объект datetime
-    end_date_clean = end_date_str.split(',')[1].strip()
-    end_date_dt = datetime.strptime(end_date_clean, '%d.%m.%Y')
+    # Парсим конечную дату
+    end_date = datetime.strptime(end_date_str.split(',')[1].strip(), '%d.%m.%Y')
     
-    extended_data = []
-    extended_data.extend(data)  # Включаем исходные данные
-    
+
+    # Определяем период повторения (разница между первой и последней датой в исходных данных)
+    dates = []
     for record in data:
-        # Разбиваем строку даты записи
-        date_parts = record[1].split(',')
-        if len(date_parts) < 2:
-            continue  # Пропуск некорректных записей
-        
-        # Извлекаем и очищаем компоненты даты
-        weekday_name = date_parts[0].strip()
-        date_str_clean = date_parts[1].strip()
-        
-        # Преобразуем в datetime
-        base_date = datetime.strptime(date_str_clean, '%d.%m.%Y')
-        
-        # Начинаем генерацию с следующей недели
-        current_date = base_date + timedelta(days=7)
-        
-        while current_date <= end_date_dt:
+        try:
+            date_str = record[1].split(',')[1].strip()
+            dt = datetime.strptime(date_str, '%d.%m.%Y')
+            dates.append(dt)
+        except:
+            continue
+
+    
+    min_date = min(dates)
+    max_date = max(dates)
+    
+    # Вычисляем длину цикла в днях (округляем до целых недель)
+    cycle_days = 7 * ((max_date - min_date).days // 7 + 1)
+    
+    result = []
+    # Добавляем исходные данные
+    result.extend(data)
+    
+    # Вычисляем базовую дату для сдвига (начало следующего цикла)
+    current_cycle_start = min_date + timedelta(days=cycle_days)
+    week_shift = 1
+    
+    # Генерируем новые циклы
+    while current_cycle_start <= end_date:
+        for record in data:
+            # Парсим исходную дату
+            parts = record[1].split(',', 1)
+            if len(parts) < 2:
+                continue
+                
+            weekday_name = parts[0].strip()
+            base_date = datetime.strptime(parts[1].strip(), '%d.%m.%Y')
+            
+            # Вычисляем новую дату
+            new_date = base_date + timedelta(days=7 * week_shift)
+            
+            # Проверяем, не выходит ли за конечную дату
+            if new_date > end_date:
+                continue
+                
             # Форматируем новую дату
-            new_date_clean = current_date.strftime('%d.%m.%Y')
-            new_date_str = f"{weekday_name}, {new_date_clean}"
+            new_date_str = f"{weekday_name}, {new_date.strftime('%d.%m.%Y')}"
             
             # Создаем новую запись
             new_record = (
@@ -39,12 +61,13 @@ def extend_schedule(data, end_date_str):
                 record[3],  # Аудитория
                 record[4]   # Email
             )
-            extended_data.append(new_record)
-            
-            # Сдвигаем дату на 7 дней
-            current_date += timedelta(days=7)
+            result.append(new_record)
+        
+        # Переходим к следующему циклу
+        week_shift += 1
+        current_cycle_start = min_date + timedelta(days=7 * week_shift)
     
-    return extended_data
+    return result
 
 
 
@@ -109,6 +132,22 @@ BelousovaMM = [
     ('Белоусова Марина Михайловна', 'четверг, 20.02.2025', '10:15-11:45', 'Р-211', 'm.m.mikhaleva@urfu.ru')
 ]
 dataBelousovaMM = extend_schedule(BelousovaMM, "среда, 28.05.2025")
+
+BelousovaVI = [
+    ('Белоусова Виктория Ивановна', 'понедельник, 10.02.2025', '10:15-11:45', 'Р-041а', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'понедельник, 10.02.2025', '12:00-13:30', 'Р-041а', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'вторник, 11.02.2025', '10:15-11:45', 'Р-325', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'вторник, 11.02.2025', '12:00-13:30', 'Р-146', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'вторник, 11.02.2025', '14:15-15:45', 'Р-411', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'четверг, 13.02.2025', '10:15-11:45', 'Р-406', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'четверг, 13.02.2025', '12:00-13:30', 'Р-406', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'четверг, 13.02.2025', '14:15-15:45', 'Р-137', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'четверг, 13.02.2025', '17:40-19:05', 'Microsoft Teams', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'пятница, 14.02.2025', '10:15-11:45', 'Р-041а', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'пятница, 14.02.2025', '12:00-13:30', 'Р-050', 'v.i.belousova@urfu.ru'),
+    ('Белоусова Виктория Ивановна', 'пятница, 14.02.2025', '14:15-15:45', 'Р-411', 'v.i.belousova@urfu.ru')
+]
+dataBelousovaVI = extend_schedule(BelousovaVI, "пятница, 30.05.2025")
 
 BotovMA = [
     ('Ботов Михаил Алексеевич', 'понедельник, 10.02.2025', '10:15-11:45', 'Ф422', 'M.A.Botov@urfu.ru'),
@@ -264,14 +303,28 @@ MelnikovJB = [
 dataMelnikovJB = extend_schedule(MelnikovJB, "пятница, 30.05.2025")
 
 PotorochinaKS = [
-    ('Поторочина Ксения Сергеевна', 'четверг, 27.02.2025', '08:30-10:00', 'Р-050', 'k.s.potorochina@urfu.ru'),
-    ('Поторочина Ксения Сергеевна', 'четверг, 27.02.2025', '10:15-11:45', 'Р-339', 'k.s.potorochina@urfu.ru'),
-    ('Поторочина Ксения Сергеевна', 'пятница, 28.02.2025', '08:30-10:00', 'Р-215', 'k.s.potorochina@urfu.ru'),
-    ('Поторочина Ксения Сергеевна', 'пятница, 28.02.2025', '10:15-11:45', 'Р-215', 'k.s.potorochina@urfu.ru'),
-    ('Поторочина Ксения Сергеевна', 'пятница, 28.02.2025', '12:00-13:30', 'Р-215', 'k.s.potorochina@urfu.ru'),
-    ('Поторочина Ксения Сергеевна', 'пятница, 28.02.2025', '14:15-15:45', 'Р-215', 'k.s.potorochina@urfu.ru')
+    ('Поторочина Ксения Сергеевна', 'вторник, 11.02.2025', '10:15-11:45', 'Р-339', 'k.s.potorochina@urfu.ru'),
+    ('Поторочина Ксения Сергеевна', 'четверг, 13.02.2025', '08:30-10:00', 'Р-050', 'k.s.potorochina@urfu.ru'),
+    ('Поторочина Ксения Сергеевна', 'четверг, 13.02.2025', '10:15-11:45', 'Р-339', 'k.s.potorochina@urfu.ru'),
+    ('Поторочина Ксения Сергеевна', 'пятница, 14.02.2025', '08:30-10:00', 'Р-215', 'k.s.potorochina@urfu.ru'),
+    ('Поторочина Ксения Сергеевна', 'пятница, 14.02.2025', '10:15-11:45', 'Р-215', 'k.s.potorochina@urfu.ru'),
+    ('Поторочина Ксения Сергеевна', 'пятница, 14.02.2025', '12:00-13:30', 'Р-215', 'k.s.potorochina@urfu.ru'),
+    ('Поторочина Ксения Сергеевна', 'пятница, 14.02.2025', '14:15-15:45', 'Р-215', 'k.s.potorochina@urfu.ru')
 ]
 dataPotorochinaKS = extend_schedule(PotorochinaKS, "пятница, 30.05.2025")
+
+RasinOV = [
+    ('Расин Олег Вениаминович', 'понедельник, 10.02.2025', '10:40-12:10', '608 (Тургенева, 4)', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'понедельник, 10.02.2025', '12:50-14:20', '509 (Тургенева, 4)', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'понедельник, 10.02.2025', '15:00-16:35', '501 (ул. Куйбышева, дом 48а / ул. Белинского, д.71а литер Б)', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'вторник, 11.02.2025', '08:30-10:00', 'Т-106 (Софьи Ковалевской, 5)', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'вторник, 11.02.2025', '10:15-11:45', 'Т-106 (Софьи Ковалевской, 5)', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'вторник, 11.02.2025', '12:00-13:30', 'Р-237', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'вторник, 11.02.2025', '14:15-15:45', 'Р-237', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'среда, 12.02.2025', '09:00-10:35', '506 (ул. Куйбышева, дом 48а / ул. Белинского, д.71а литер Б)', 'O.V.Rasin@urfu.ru'),
+    ('Расин Олег Вениаминович', 'среда, 12.02.2025', '10:50-12:25', '506 (ул. Куйбышева, дом 48а / ул. Белинского, д.71а литер Б)', 'O.V.Rasin@urfu.ru')
+]
+dataRasinOV = extend_schedule(RasinOV, "среда, 28.05.2025")
 
 RybalkoAF = [
     ('Рыбалко Александр Федорович', 'среда, 12.02.2025', '10:15-11:45', 'ГУК-404(II)', 'A.F.Rybalko@urfu.ru'),
@@ -298,10 +351,50 @@ ChuksinaNV = [
     ('Чуксина Наталия Владимировна', 'среда, 12.02.2025', '16:00-17:30', 'Р-406', 'n.v.chuksina@urfu.ru'),
     ('Чуксина Наталия Владимировна', 'четверг, 13.02.2025', '08:30-10:00', 'Р-215', 'n.v.chuksina@urfu.ru'),
     ('Чуксина Наталия Владимировна', 'четверг, 13.02.2025', '10:15-11:45', 'Р-215', 'n.v.chuksina@urfu.ru'),
-    ('Чуксина Наталия Владимировна', 'четверг, 13.02.2025', '12:00-13:30', 'Р-215', 'n.v.chuksina@urfu.ru'),
-    ('Чуксина Наталия Владимировна', 'четверг, 13.02.2025', '14:15-15:45', 'Р-406', 'n.v.chuksina@urfu.ru')
+    ('Чуксина Наталия Владимировна', 'четверг, 13.02.2025', '12:00-13:30', 'Р-215', 'n.v.chuksina@urfu.ru')
 ]
 dataChuksinaNV = extend_schedule(ChuksinaNV, "четверг, 29.05.2025")
 
+ShaparJV = [
+    ('Шапарь Юлия Викторовна', 'понедельник, 10.02.2025', '10:15-11:45', 'Р-325', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'понедельник, 10.02.2025', '12:00-13:30', 'Р-146', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'понедельник, 10.02.2025', '14:15-15:45', 'Р-325', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'вторник, 11.02.2025', '14:15-15:45', 'Р-203', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'вторник, 11.02.2025', '16:00-17:30', 'Р-203', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'четверг, 13.02.2025', '09:00-10:30', '622 (Тургенева, 4)', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'четверг, 13.02.2025', '10:40-12:10', '622 (Тургенева, 4)', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'четверг, 13.02.2025', '12:50-14:20', '621 (Тургенева, 4)', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'четверг, 13.02.2025', '14:30-16:00', '532 (Тургенева, 4)', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'пятница, 14.02.2025', '08:30-10:00', 'Р-203', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'пятница, 14.02.2025', '10:15-11:45', 'Р-203', 'j.v.shapar@urfu.ru'),
+    ('Шапарь Юлия Викторовна', 'пятница, 14.02.2025', '12:00-13:30', 'Р-211', 'j.v.shapar@urfu.ru')
+]
+dataShaparJV = extend_schedule(ShaparJV, "пятница, 30.05.2025")
 
-data_additional = dataAgafonoAP + dataBelousovIN + dataBelousovaMM + dataBotovMA + dataButakovGP + dataVeretennikovBM + dataVlasovaAM + dataGerasimovMF + dataKashchenkoNM + dataKizilovaEV + dataKnyshAA + dataKrikovtcevaTG + dataKrokhinAL + dataLivadniyED + dataLobashevaNA + dataMarkinaAS + dataMelnikovJB + dataPotorochinaKS + dataRybalkoAF + dataChashchinaVG + dataChuksinaNV
+ShestakovaIA = [
+    ('Шестакова Ирина Александровна', 'понедельник, 10.02.2025', '12:00-13:30', 'Не указана', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'понедельник, 10.02.2025', '14:15-15:45', 'Не указана', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'вторник, 11.02.2025', '10:15-11:45', 'Р-211', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'вторник, 11.02.2025', '14:15-15:45', 'Не указана', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'вторник, 11.02.2025', '16:00-17:30', 'Не указана', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'четверг, 13.02.2025', '16:00-17:30', 'Не указана', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'пятница, 14.02.2025', '12:00-13:30', 'Не указана', 'i.a.shestakova@urfu.ru'),
+    ('Шестакова Ирина Александровна', 'пятница, 14.02.2025', '14:15-15:45', 'Р-050', 'i.a.shestakova@urfu.ru')
+]
+dataShestakovaIA = extend_schedule(ShestakovaIA, "пятница, 30.05.2025")
+
+YankovskayaAV = [
+    ('Янковская Анастасия Викторовна', 'вторник, 11.02.2025', '16:00-17:30', 'И306 (Мира, 19)', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'вторник, 11.02.2025', '17:40-19:05', 'И306 (Мира, 19)', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'среда, 12.02.2025', '14:15-15:45', 'МТ-409', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'среда, 12.02.2025', '16:00-17:30', 'МТ-409', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'четверг, 13.02.2025', '14:15-15:45', 'Р-339', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'четверг, 13.02.2025', '16:00-17:30', 'Р-339', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'пятница, 14.02.2025', '14:15-15:45', 'Т505 (Софьи Ковалевской, 5)', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'пятница, 14.02.2025', '16:00-17:30', 'МТ-407', 'av.diachkova@urfu.ru'),
+    ('Янковская Анастасия Викторовна', 'суббота, 15.02.2025', 'Онлайн занятия', 'inf-online', 'av.diachkova@urfu.ru')
+]
+dataYankovskayaAV = extend_schedule(YankovskayaAV, "пятница, 30.05.2025")
+
+
+data_additional = dataAgafonoAP + dataBelousovIN + dataBelousovaMM + dataBelousovaVI + dataBotovMA + dataButakovGP + dataVeretennikovBM + dataVlasovaAM + dataGerasimovMF + dataKashchenkoNM + dataKizilovaEV + dataKnyshAA + dataKrikovtcevaTG + dataKrokhinAL + dataLivadniyED + dataLobashevaNA + dataMarkinaAS + dataMelnikovJB + dataPotorochinaKS + dataRybalkoAF + dataChashchinaVG + dataChuksinaNV + dataRasinOV + dataShaparJV + dataShestakovaIA + dataYankovskayaAV

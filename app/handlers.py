@@ -272,7 +272,7 @@ async def send_schedule_page(message: Message, data: list, page: int, state: FSM
     start_idx = page * items_per_page
     end_idx = min((page + 1) * items_per_page, len(data))
     
-    response = [f"📅 Расписание занятий для {data[0][0]} (стр. {page+1}/{total_pages}):", "————————————————"]
+    response = [f"📅 Расписание занятий (стр. {page+1}/{total_pages}):", "————————————————"]
     for record in data[start_idx:end_idx]:
         day, time, room, contact = record
         contact_info = f"\n✉️ Контакты: {contact}" if contact != "--" else ""
